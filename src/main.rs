@@ -1,16 +1,13 @@
 extern crate msgpack_rpc;
 extern crate futures;
-extern crate tokio_core;
 
-use msgpack_rpc::{Client, Endpoint, Handler, Value};
-use msgpack_rpc::io::StdioStream;
+use msgpack_rpc::{Client, Handler, Value};
+use msgpack_rpc::io::run_tcp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{Ordering, AtomicUsize};
-use futures::{Future, Stream, IntoFuture};
-use futures::future::{BoxFuture, empty, ok, err};
-use tokio_core::reactor::Core;
-use tokio_core::net::TcpListener;
+use futures::{Future, IntoFuture};
+use futures::future::{BoxFuture, ok, err};
 
 
 #[derive(Default)]
@@ -60,37 +57,6 @@ impl Handler for Registry {
             None => err(()).boxed(),
         }
     }
-}
-
-
-#[allow(dead_code)]
-fn run(registry: Registry) {
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-
-    let io = StdioStream::new(4);
-    let endpoint = Endpoint::from_io(&handle, io);
-
-    endpoint.serve(&handle, registry);
-    core.run(empty::<(), ()>()).unwrap();
-}
-
-fn run_tcp(registry: Registry, addr: &str) {
-    let registry = Arc::new(registry);
-
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-
-    let addr = addr.parse().unwrap();
-    let listener = TcpListener::bind(&addr, &handle).unwrap();
-
-    let server = listener.incoming().for_each(move |(sock, _addr)| {
-        let endpoint = Endpoint::from_io(&handle, sock);
-        endpoint.serve(&handle, registry.clone());
-        Ok(())
-    });
-
-    core.run(server).unwrap();
 }
 
 
