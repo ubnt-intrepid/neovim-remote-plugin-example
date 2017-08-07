@@ -1,11 +1,12 @@
+#![allow(dead_code)]
+
 extern crate msgpack_rpc;
 extern crate futures;
+extern crate rmpv;
 
 use msgpack_rpc::{Client, Handler, Value};
-use msgpack_rpc::io::run_tcp;
+use msgpack_rpc::io::run_stdio;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{Ordering, AtomicUsize};
 use futures::{Future, IntoFuture};
 use futures::future::{BoxFuture, ok, err};
 
@@ -60,46 +61,26 @@ impl Handler for Registry {
 }
 
 
-#[derive(Default)]
-struct Hello {
-    counter: AtomicUsize,
-}
-
-impl Hello {
-    fn value(&self) -> u32 {
-        self.counter.load(Ordering::Relaxed) as u32
-    }
-
-    fn increment(&self) {
-        self.counter.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn into_registry(self) -> Registry {
-        let hello = Arc::new(self);
-
-        let mut registry = Registry::default();
-
-        registry.register("value", {
-            let hello = hello.clone();
-            move |_, _| -> Result<Value, Value> {
-                eprintln!("[debug] value()");
-                Ok(hello.value().into())
-            }
-        });
-
-        registry.register_notification("increment", {
-            let hello = hello.clone();
-            move |_, _| {
-                eprintln!("[debug] increment()");
-                hello.increment()
-            }
-        });
-
-        registry
-    }
-}
 
 fn main() {
-    let hello = Hello::default();
-    run_tcp(hello.into_registry(), "0.0.0.0:12345")
+    let mut registry = Registry::default();
+    registry.register("0:function:Hello", {
+        move |params, _| -> Result<Value, Value> {
+            let args: Vec<String> = rmpv::ext::from_value(params.as_array().unwrap()[0].clone())
+                .map_err(|e| Value::from(e.to_string()))?;
+            match args.len() {
+                0 => Ok("Who are you?".into()),
+                1 => Ok(format!("Hello, {}", args[0]).into()),
+                _ => Ok(
+                    format!(
+                        "Hello, {} and {}",
+                        (&args[0..(args.len() - 1)]).join(", "),
+                        args[args.len() - 1]
+                    ).into(),
+                ),
+            }
+        }
+    });
+
+    run_stdio(registry, 4)
 }

@@ -1,8 +1,9 @@
 [package]
-name = "neovim"
+name = "hello"
 version = "0.1.0"
 authors = ["Yusuke Sasaki <yusuke.sasaki.nuem@gmail.com>"]
 
 [dependencies]
 msgpack-rpc = { path = "../msgpack-rpc-rs" }
 futures = "~0.1"
+rmpv = { version = "*", features = ["with-serde"] }
